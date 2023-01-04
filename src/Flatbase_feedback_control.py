@@ -5,8 +5,6 @@ from math import atan2, cos, sin, tan, atan
 from scipy.integrate import solve_ivp, odeint
 from scipy.interpolate import interp1d
 
-
-
 def model_ode(t, m0, ref, gain):
 
     x = m0[0]

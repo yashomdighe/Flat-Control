@@ -2,6 +2,7 @@
 import rospy 
 from nav_msgs.msg import Odometry, Path
 from ackermann_msgs.msg import AckermannDrive
+import tf_conversions
 
 import numpy as np
 from math import atan2, cos, sin, tan, atan
@@ -12,7 +13,10 @@ class Flat_Controller:
     def __init__(self, ref_traj) -> None:
         rospy.loginfo("Initialized Flat Controller")
 
-        #  Make a copy of the reference trajectory and construct interpolation functions 
+        self.t0 = rospy.Time.now().to_sec()
+
+        #  Make a copy of the reference trajectory and construct interpolation functions
+        #  to get the value of the function at any time instance t
         self.ref = ref_traj
         self.f1 = interp1d(self.ref[0,:], self.ref[1,:])
         self.f2 = interp1d(self.ref[0,:], self.ref[2,:])
@@ -23,10 +27,11 @@ class Flat_Controller:
 
         self.drive_msg = AckermannDrive()
         self.driver = rospy.Publisher(name="/car1/command", data_class=AckermannDrive, queue_size=5)
-        self.feedback = rospy.Subscriber(name="'/car_1/base/odom", data_class=Odometry, queue_size=1, callback=self.traj_track)
+        self.feedback = rospy.Subscriber(name="/car_1/base/odom", data_class=Odometry, queue_size=1, callback=self.traj_track)
 
-    def traj_track():
-        pass
+    def traj_track(self, odom):
+        self.ti = rospy.Time.now().to_sec() - self.t0
+        rospy.loginfo(self.ti)
 
 
 if __name__ == "__main__":
@@ -72,3 +77,5 @@ if __name__ == "__main__":
 
     ref = np.array([tvec, xTraj, xdTraj, xddTraj, yTraj, ydTraj, yddTraj])
 
+    controller = Flat_Controller(ref)
+    rospy.spin()
