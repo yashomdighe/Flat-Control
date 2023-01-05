@@ -119,7 +119,6 @@ def get_Control(tvec, sol, ref, gain, tmax):
     
     return np.array([control1_vec, control2_vec])
 
-
 def main():
     # 5th order polynomial
 
