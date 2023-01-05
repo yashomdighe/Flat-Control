@@ -3,7 +3,7 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 from math import atan2, cos, sin, tan, atan
 from scipy.integrate import solve_ivp
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, CubicSpline
 
 def model_ode(t, m0, ref, gain, tmax):
 
@@ -23,13 +23,13 @@ def model_ode(t, m0, ref, gain, tmax):
     f5 = interp1d(ref[0,:], ref[5,:])
     f6= interp1d(ref[0,:], ref[6,:])
 
-    x_ref = f1(t/tmax)
-    x_refd = f2(t/tmax)
-    x_refdd = f3(t/tmax)
+    x_ref = f1(t)
+    x_refd = f2(t)
+    x_refdd = f3(t)
 
-    y_ref = f4(t/tmax)
-    y_refd = f5(t/tmax)
-    y_refdd = f6(t/tmax)
+    y_ref = f4(t)
+    y_refd = f5(t)
+    y_refdd = f6(t)
 
     e1 = x_ref-x
     e2 = y_ref-y
@@ -48,10 +48,10 @@ def model_ode(t, m0, ref, gain, tmax):
     control1 = z1*cos(th) + z2*sin(th)
     control2 = atan((L/v**2)*(z2*cos(th)-z1*sin(th)))
 
-    xdot = v*cos(th)/tmax
-    ydot = v*sin(th)/tmax
-    thdot = (v/L)*tan(control2)/tmax
-    vdot = control1/tmax
+    xdot = v*cos(th)
+    ydot = v*sin(th)
+    thdot = (v/L)*tan(control2)
+    vdot = control1
 
     mdot = [xdot, ydot, thdot, vdot]
 
@@ -84,13 +84,13 @@ def get_Control(tvec, sol, ref, gain, tmax):
         f5 = interp1d(ref[0,:], ref[5,:])
         f6= interp1d(ref[0,:], ref[6,:])
 
-        x_ref = f1(t/tmax)
-        x_refd = f2(t/tmax)
-        x_refdd = f3(t/tmax)
+        x_ref = f1(t)
+        x_refd = f2(t)
+        x_refdd = f3(t)
 
-        y_ref = f4(t/tmax)
-        y_refd = f5(t/tmax)
-        y_refdd = f6(t/tmax)
+        y_ref = f4(t)
+        y_refd = f5(t)
+        y_refdd = f6(t)
 
         e1 = x_ref-x
         e2 = y_ref-y
@@ -112,10 +112,10 @@ def get_Control(tvec, sol, ref, gain, tmax):
         control1_vec.append(control1)
         control2_vec.append(control2)
 
-        xdot = v*cos(th)/tmax
-        ydot = v*sin(th)/tmax
-        thdot = (v/L)*tan(control2)/tmax
-        vdot = control1/tmax
+        xdot = v*cos(th)
+        ydot = v*sin(th)
+        thdot = (v/L)*tan(control2)
+        vdot = control1
     
     return np.array([control1_vec, control2_vec])
 
@@ -123,12 +123,10 @@ def main():
     # 5th order polynomial
 
     x0 = np.array([0,0,0])
-    xf = np.array([1.5,0.5,0])
+    xf = np.array([4.5,4.5,0])
     L = 1
 
-    tmax = 20
-    tvec = np.linspace(0, tmax, tmax*1001)
-    tau_vec = tvec/tmax
+    tau_vec = np.linspace(0, 1,1001)
 
     AmatY = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
                     [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0],
@@ -144,14 +142,26 @@ def main():
     xPar = np.poly1d(np.squeeze(xPar))
     yPar = np.poly1d(np.squeeze(yPar))
 
-    xTraj = np.polyval(xPar, tau_vec)
-    yTraj = np.polyval(yPar, tau_vec)
+    xTraj_normalized = np.polyval(xPar, tau_vec)
+    yTraj_normalized = np.polyval(yPar, tau_vec)
 
-    xdTraj = np.polyval(np.polyder(xPar,1),tau_vec)
-    ydTraj = np.polyval(np.polyder(yPar,1),tau_vec)
+    tmax = 5
+    tvec = np.linspace(0, tmax, 1001)
+
+    xTrajCS = CubicSpline(tvec, xTraj_normalized)
+    yTrajCS = CubicSpline(tvec, yTraj_normalized)
+
+    xTraj = xTrajCS(tvec)
+    yTraj = yTrajCS(tvec)
+
+    # xdTraj = np.polyval(np.polyder(xPar,1),tau_vec)
+    # ydTraj = np.polyval(np.polyder(yPar,1),tau_vec)
+
+    xdTraj = xTrajCS(tvec,1)
+    ydTraj = yTrajCS(tvec, 1)
     
-    xddTraj = np.polyval(np.polyder(xPar,2),tau_vec)
-    yddTraj = np.polyval(np.polyder(yPar,2),tau_vec)
+    xddTraj = xTrajCS(tvec,2)
+    yddTraj = yTrajCS(tvec, 2)
     
     thTraj = np.arctan2(ydTraj,xdTraj)
     thdTraj = np.divide(np.multiply(yddTraj, xdTraj)-np.multiply(ydTraj, xddTraj), (np.power(xdTraj,2)+np.power(ydTraj,2)))
@@ -159,7 +169,7 @@ def main():
     vTraj = np.sqrt(np.power(xdTraj,2)+ np.power(ydTraj,2))
     phiTraj = np.arctan2(L*thdTraj, vTraj)
 
-    ref = np.array([tau_vec, xTraj, xdTraj, xddTraj, yTraj, ydTraj, yddTraj])
+    ref = np.array([tvec, xTraj, xdTraj, xddTraj, yTraj, ydTraj, yddTraj])
     gain = [1,1]
 
     m0 = [xTraj[0], yTraj[0], thTraj[0], vTraj[0]]
@@ -167,7 +177,7 @@ def main():
     kd = 1
     gain = [kp, kd]
 
-    sol = solve_ivp(model_ode, [0, tmax], m0, t_eval=tau_vec*tmax ,args=(ref, gain, tmax))
+    sol = solve_ivp(model_ode, [0, tmax], m0, t_eval=tvec ,args=(ref, gain, tmax))
     xsol = sol.y[0]
     ysol = sol.y[1]
     thsol = sol.y[2]
