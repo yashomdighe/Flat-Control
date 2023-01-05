@@ -11,7 +11,7 @@ def model_ode(t, m0, ref, gain, tmax):
     y = m0[1]
     th = m0[2]
     v = m0[3]
-    L = 1
+    L = 0.324
     if v == 0:
         v = 0.0001
 
@@ -65,8 +65,7 @@ def get_Control(tvec, sol, ref, gain, tmax):
     ysol = sol.y[1]
     thsol = sol.y[2]
     vsol = sol.y[3] 
-    L = 1
-
+    L = 0.324
     for i in range(len(tvec)):
         x = xsol[i]
         y = ysol[i]
@@ -111,11 +110,6 @@ def get_Control(tvec, sol, ref, gain, tmax):
 
         control1_vec.append(control1)
         control2_vec.append(control2)
-
-        xdot = v*cos(th)
-        ydot = v*sin(th)
-        thdot = (v/L)*tan(control2)
-        vdot = control1
     
     return np.array([control1_vec, control2_vec])
 
@@ -123,8 +117,8 @@ def main():
     # 5th order polynomial
 
     x0 = np.array([0,0,0])
-    xf = np.array([4.5,4.5,0])
-    L = 1
+    xf = np.array([10.5,0.5,0])
+    L = 0.324
 
     tau_vec = np.linspace(0, 1,1001)
 
@@ -145,7 +139,7 @@ def main():
     xTraj_normalized = np.polyval(xPar, tau_vec)
     yTraj_normalized = np.polyval(yPar, tau_vec)
 
-    tmax = 5
+    tmax = 15
     tvec = np.linspace(0, tmax, 1001)
 
     xTrajCS = CubicSpline(tvec, xTraj_normalized)
