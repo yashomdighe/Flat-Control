@@ -14,8 +14,8 @@ class Flat_Controller:
     
     def __init__(self, ref_traj, gain, tmax) -> None:
         rospy.loginfo("Initialized Flat Controller")
-
-        self.t0 = rospy.Time.now().to_sec()
+        rospy.sleep(2)
+        self.t0 = rospy.get_time()
         self.vel_prev = 0 # 0 initial velocity
         self.t_prev = 0 # initial time
         self.L = 0.324
@@ -39,8 +39,10 @@ class Flat_Controller:
         self.feedback = rospy.Subscriber(name="/car_1/base/odom", data_class=Odometry, queue_size=1, callback=self.traj_track)
 
     def traj_track(self, odom):
-        self.ti = rospy.Time.now().to_sec() - self.t0
-
+        self.ti = rospy.get_time() - self.t0
+        rospy.loginfo(self.t0)
+        rospy.loginfo(self.ti)
+        rospy.loginfo(self.tmax - self.ti)
         if self.tmax - self.ti <= 0.01:
             self.drive_msg.speed = 0
             self.drive_msg.acceleration = 0
@@ -89,12 +91,18 @@ class Flat_Controller:
         z1 = x_refdd+ k1*e1_dot+k2*e1
         z2 = y_refdd+ k3*e2_dot+k4*e2
 
+        # z1 = z1/self.tmax        
+        # z2 = z2/self.tmax
+
         vel_fwd = sqrt(v.x**2 + v.y**2)
         dt = self.ti - self.t_prev
 
-        control1 = z1*cos(yaw) + z2*sin(yaw) # Acceleration
+        control1 = (z1*cos(yaw) + z2*sin(yaw)) # Acceleration
         control2 = atan((self.L/vel_fwd**2)*(z2*cos(yaw)-z1*sin(yaw))) # Phi
-        control3 = self.vel_prev + control2*dt # finite difference to calculate velocity
+        # control1 = control1/self.tmax
+        # control2 = control2/self.tmax
+
+        control3 = self.vel_prev + control2*dt # numerical integration to calculate velocity
 
 
         self.drive_msg.speed = control3
@@ -106,7 +114,7 @@ class Flat_Controller:
 
         self.driver.publish(self.drive_msg)
 
-        rospy.loginfo(self.ti)
+        
 
 
 if __name__ == "__main__":
