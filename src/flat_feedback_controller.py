@@ -7,6 +7,8 @@ import tf_conversions
 import numpy as np
 from math import atan2, cos, sin, tan, atan, sqrt
 from scipy.interpolate import interp1d
+import matplotlib as mpl
+from matplotlib import pyplot as plt
 
 class Flat_Controller:
     
@@ -14,7 +16,12 @@ class Flat_Controller:
         rospy.loginfo("Initialized Flat Controller")
 
         self.t0 = rospy.Time.now().to_sec()
-
+        self.vel_prev = 0 # 0 initial velocity
+        self.t_prev = 0 # initial time
+        self.L = 0.324
+        self.tvec = []
+        self.x_pose = []
+        self.y_pose = []
         #  Make a copy of the reference trajectory and construct interpolation functions
         #  to get the value of the function at any time instance t
         self.ref = ref_traj
@@ -35,11 +42,28 @@ class Flat_Controller:
         self.ti = rospy.Time.now().to_sec() - self.t0
 
         if self.tmax - self.ti <= 0.01:
+            self.drive_msg.speed = 0
+            self.drive_msg.acceleration = 0
+            self.drive_msg.steering_angle = 0
+
+            self.driver.publish(self.drive_msg)
+
+            fig, ax = plt.subplots()
+            ax.plot(self.x_pose, self.y_pose, label = 'executed trajectory', linewidth = 1.3 ,linestyle = 'dashed')
+            ax.set_title("Trajectories")
+            ax.legend()
+            ax.grid()
+
+            plt.show()
+
             rospy.signal_shutdown("Reached Traj end time")
         
+        self.tvec.append(self.ti)
         v = odom.twist.twist.linear
         ang_vel = odom.twist.twist.angular
         pose = odom.pose.pose.position
+        self.x_pose.append(pose.x)
+        self.y_pose.append(pose.y)
 
         orientation_quat = odom.pose.pose.orientation
         (roll, pitch, yaw) = tf_conversions.transformations.euler_from_quaternion([orientation_quat.x, orientation_quat.y, orientation_quat.z, orientation_quat.w])
@@ -66,12 +90,20 @@ class Flat_Controller:
         z1 = x_refdd+ k1*e1_dot+k2*e1
         z2 = y_refdd+ k3*e2_dot+k4*e2
 
-        vel = sqrt(v.x**2 + v.y**2)
-        control1 = z1*cos(yaw) + z2*sin(yaw) # Acceleration
-        control2 = atan((L/vel**2)*(z2*cos(yaw)-z1*sin(yaw))) # Phi
+        vel_fwd = sqrt(v.x**2 + v.y**2)
+        dt = self.ti - self.t_prev
 
+        control1 = z1*cos(yaw) + z2*sin(yaw) # Acceleration
+        control2 = atan((self.L/vel_fwd**2)*(z2*cos(yaw)-z1*sin(yaw))) # Phi
+        control3 = self.vel_prev + control2*dt # finite difference to calculate velocity
+
+
+        self.drive_msg.speed = control3
         self.drive_msg.acceleration = control1
         self.drive_msg.steering_angle = control2
+
+        self.vel_prev = control3
+        self.t_prev = self.ti
 
         self.driver.publish(self.drive_msg)
 
@@ -85,7 +117,7 @@ if __name__ == "__main__":
 
     x0 = np.array([0,0,0])
     xf = np.array([1.5,0.5,0])
-    L = 1
+    L = 0.324
 
     tmax = 20
     tvec = np.linspace(0, tmax, tmax*1001)
