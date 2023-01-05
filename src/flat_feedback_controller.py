@@ -49,9 +49,8 @@ class Flat_Controller:
             self.driver.publish(self.drive_msg)
 
             fig, ax = plt.subplots()
-            ax.plot(self.x_pose, self.y_pose, label = 'executed trajectory', linewidth = 1.3 ,linestyle = 'dashed')
-            ax.set_title("Trajectories")
-            ax.legend()
+            ax.plot(self.x_pose, self.y_pose, color=u'#ff7f0e')
+            ax.set_title("executed trajectory")
             ax.grid()
 
             plt.show()
@@ -119,7 +118,7 @@ if __name__ == "__main__":
     xf = np.array([1.5,0.5,0])
     L = 0.324
 
-    tmax = 20
+    tmax = 10
     tvec = np.linspace(0, tmax, tmax*1001)
     tau_vec = tvec/tmax
 
