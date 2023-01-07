@@ -12,7 +12,7 @@ from matplotlib import pyplot as plt
 
 class Flat_Controller:
     
-    def __init__(self, ref_traj, gain, tmax) -> None:
+    def __init__(self, gain, tmax, xTrajCS, yTrajCS) -> None:
         rospy.loginfo("Initialized Flat Controller")
         rospy.sleep(2)
         self.t0 = rospy.get_time()
@@ -26,15 +26,14 @@ class Flat_Controller:
         self.control1_vec = []
         self.control2_vec = []
         self.control3_vec = []
+        self.e1_vec = []
+        self.e2_vec = []
+        self.e1dot_vec = []
+        self.e2dot_vec = []
         #  Make a copy of the reference trajectory and construct interpolation functions
-        #  to get the value of the function at any time instance t
-        self.ref = ref_traj
-        self.f1 = interp1d(self.ref[0,:], self.ref[1,:])
-        self.f2 = interp1d(self.ref[0,:], self.ref[2,:])
-        self.f3 = interp1d(self.ref[0,:], self.ref[3,:])
-        self.f4 = interp1d(self.ref[0,:], self.ref[4,:])
-        self.f5 = interp1d(self.ref[0,:], self.ref[5,:])
-        self.f6 = interp1d(self.ref[0,:], self.ref[6,:])
+        #  to get the value of the reference at any time instance t
+        self.xTraj = xTrajCS
+        self.yTraj = yTrajCS
 
         self.gain = gain
         self.tmax = tmax
@@ -47,16 +46,16 @@ class Flat_Controller:
         # rospy.loginfo(self.t0)
         rospy.loginfo(self.ti)
         # rospy.loginfo(self.tmax - self.ti)
-        if self.ti > self.tmax:
+        if self.ti > self.tmax+0.01:
             self.drive_msg.speed = 0
             self.drive_msg.acceleration = 0
             self.drive_msg.steering_angle = 0
 
             self.driver.publish(self.drive_msg)
-            x_ref = self.ref[1,:]
-            y_ref = self.ref[4,:]
+            x_ref = self.xTraj(tvec)
+            y_ref = self.yTraj(tvec)
 
-            fig, (ax1, ax2) = plt.subplots(1,2)
+            fig, (ax1, ax2, ax3) = plt.subplots(1,3)
             ax1.plot(x_ref, y_ref, label = "reference")
             ax1.plot(self.x_pose, self.y_pose, label = "executed")
             ax1.set_title("executed trajectory")
@@ -65,10 +64,18 @@ class Flat_Controller:
 
             ax2.plot(self.tvec, self.control1_vec, label= "acceleration")
             ax2.plot(self.tvec, self.control2_vec, label= "phi")
-            ax2.plot(self.tvec, self.control3_vec, label= "speed")
+            ax2.plot(self.tvec, self.control3_vec, label= "speed", linestyle="dashed")
             ax2.set_title("control signals")
             ax2.legend()
             ax2.grid()
+
+            ax3.plot(self.tvec, self.e1_vec, label = "x error")
+            ax3.plot(self.tvec, self.e2_vec, label = "y error")
+            ax3.plot(self.tvec, self.e1dot_vec, label = "x_dot error")
+            ax3.plot(self.tvec, self.e2dot_vec, label = "y_dot error")
+            ax3.set_title("error vs t")
+            ax3.legend()
+            ax3.grid()
 
             plt.show()
 
@@ -82,20 +89,28 @@ class Flat_Controller:
         self.y_pose.append(pose.y)
 
         orientation_quat = odom.pose.pose.orientation
-        (roll, pitch, yaw) = tf_conversions.transformations.euler_from_quaternion([orientation_quat.x, orientation_quat.y, orientation_quat.z, orientation_quat.w])
+        (roll, pitch, yaw) = tf_conversions.transformations.euler_from_quaternion([orientation_quat.x, orientation_quat.y, orientation_quat.z, orientation_quat.w], "rxyz")
         
-        x_ref = self.f1(self.ti)
-        x_refd = self.f2(self.ti)
-        x_refdd = self.f3(self.ti)
+        x_ref = self.xTraj(self.ti)
+        x_refd = self.xTraj(self.ti,1)
+        x_refdd = self.xTraj(self.ti,2)
 
-        y_ref = self.f4(self.ti)
-        y_refd = self.f5(self.ti)
-        y_refdd = self.f6(self.ti)
+        y_ref = self.yTraj(self.ti)
+        y_refd = self.yTraj(self.ti,1)
+        y_refdd = self.yTraj(self.ti,2)
+
+        rospy.loginfo(str(x_ref) + " " +str(y_ref))
 
         e1 = x_ref-pose.x
         e2 = y_ref-pose.y
         e1_dot = x_refd-v.x
         e2_dot = y_refd-v.y
+
+        self.e1_vec.append(e1)
+        self.e2_vec.append(e2)
+
+        self.e1dot_vec.append(e1_dot)
+        self.e2dot_vec.append(e2_dot)
         
         k1 = self.gain[1]
         k2 = self.gain[0]
@@ -103,8 +118,8 @@ class Flat_Controller:
         k3 = self.gain[1] # kd 
         k4 = self.gain[0] # kp
 
-        z1 = x_refdd+ k1*e1_dot+k2*e1
-        z2 = y_refdd+ k3*e2_dot+k4*e2
+        z1 = x_refdd+k1*e1_dot+k2*e1
+        z2 = y_refdd+k3*e2_dot+k4*e2
 
         vel_fwd = sqrt(v.x**2 + v.y**2)
         dt = self.ti - self.t_prev
@@ -113,7 +128,7 @@ class Flat_Controller:
         control2 = atan((self.L/vel_fwd**2)*(z2*cos(yaw)-z1*sin(yaw))) # Ph
         control3 = self.vel_prev + control1*dt # numerical integration to calculate velocity
 
-        self.drive_msg.acceleration = control1
+        # self.drive_msg.acceleration = control1
         self.drive_msg.steering_angle = control2
         self.drive_msg.speed = control3
 
@@ -136,7 +151,7 @@ if __name__ == "__main__":
     # 5th order polynomial
 
     x0 = np.array([0,0,0])
-    xf = np.array([1.5,0.5,0])
+    xf = np.array([10.5,9.5,0])
     L = 0.324
 
     tau_vec = np.linspace(0, 1,1001)
@@ -182,8 +197,8 @@ if __name__ == "__main__":
     vTraj = np.sqrt(np.power(xdTraj,2)+ np.power(ydTraj,2))
     phiTraj = np.arctan2(L*thdTraj, vTraj)
 
-    ref = np.array([tvec, xTraj, xdTraj, xddTraj, yTraj, ydTraj, yddTraj])
-    gain = [1,1]
-
-    controller = Flat_Controller(ref, gain, tmax)
+    # ref = np.array([tvec, xTraj, xdTraj, xddTraj, yTraj, ydTraj, yddTraj])
+    gain = [0.5,0.25]
+    # gain = [50, 15]
+    controller = Flat_Controller(gain, tmax, xTrajCS, yTrajCS)
     rospy.spin()
