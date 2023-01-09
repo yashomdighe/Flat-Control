@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib as mpl 
 from matplotlib import pyplot as plt
-from math import atan2, cos, sin, tan, atan
+from math import atan2, cos, sin, tan, atan, pi
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d, CubicSpline
 
@@ -120,26 +120,27 @@ def main():
     xf = np.array([10.5,0.5,0])
     L = 0.324
 
-    tau_vec = np.linspace(0, 1,1001)
+    tau_vec1 = np.linspace(0, 5, 1001)
+    tau_vec2 = np.linspace(pi/2, pi, 1001)
 
-    AmatY = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
-                    [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0],
-                    [5*tau_vec[0]**4, 4*tau_vec[0]**3, 3*tau_vec[0]**2, 2*tau_vec[0]**1, tau_vec[0]**0, 0],
-                    [5*tau_vec[-1]**4, 4*tau_vec[-1]**3, 3*tau_vec[-1]**2, 2*tau_vec[-1]**1, tau_vec[-1]**0, 0]])
+    # AmatY = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
+    #                 [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0],
+    #                 [5*tau_vec[0]**4, 4*tau_vec[0]**3, 3*tau_vec[0]**2, 2*tau_vec[0]**1, tau_vec[0]**0, 0],
+    #                 [5*tau_vec[-1]**4, 4*tau_vec[-1]**3, 3*tau_vec[-1]**2, 2*tau_vec[-1]**1, tau_vec[-1]**0, 0]])
 
-    AmatX = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
-                    [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0]])
+    # AmatX = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
+    #                 [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0]])
 
-    xPar = np.matmul(np.linalg.pinv(AmatX),np.array([[x0[0]],[xf[0]]]))
-    yPar = np.matmul(np.linalg.pinv(AmatY),np.array([[x0[1]],[xf[1]],[x0[2]],[xf[2]]]))
+    # xPar = np.matmul(np.linalg.pinv(AmatX),np.array([[x0[0]],[xf[0]]]))
+    # yPar = np.matmul(np.linalg.pinv(AmatY),np.array([[x0[1]],[xf[1]],[x0[2]],[xf[2]]]))
 
-    xPar = np.poly1d(np.squeeze(xPar))
-    yPar = np.poly1d(np.squeeze(yPar))
+    # xPar = np.poly1d(np.squeeze(xPar))
+    # yPar = np.poly1d(np.squeeze(yPar))
 
-    xTraj_normalized = np.polyval(xPar, tau_vec)
-    yTraj_normalized = np.polyval(yPar, tau_vec)
+    xTraj_normalized = tau_vec1
+    yTraj_normalized = (np.exp(tau_vec1) - 1)/50
 
-    tmax = 15
+    tmax = 5
     tvec = np.linspace(0, tmax, 1001)
 
     xTrajCS = CubicSpline(tvec, xTraj_normalized)
@@ -164,11 +165,10 @@ def main():
     phiTraj = np.arctan2(L*thdTraj, vTraj)
 
     ref = np.array([tvec, xTraj, xdTraj, xddTraj, yTraj, ydTraj, yddTraj])
-    gain = [1,1]
 
     m0 = [xTraj[0], yTraj[0], thTraj[0], vTraj[0]]
-    kp =1
-    kd = 1
+    kp = 2
+    kd = 5
     gain = [kp, kd]
 
     sol = solve_ivp(model_ode, [0, tmax], m0, t_eval=tvec ,args=(ref, gain, tmax))
@@ -189,7 +189,7 @@ def main():
     ax1.grid()
     
     # Plot v and th vs time
-    ax2.plot(sol.t, vTraj, label = 'reference v')
+    ax2.plot(sol.t, xdTraj, label = 'reference v')
     ax2.plot(sol.t, vsol, label = 'simulated v', linewidth = 1.3 ,linestyle = 'dashed')
     ax2.plot(sol.t, thTraj, label = 'reference th')
     ax2.plot(sol.t, thsol, label = 'simulated th', linewidth = 1.3 ,linestyle = 'dashed')
