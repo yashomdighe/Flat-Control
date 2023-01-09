@@ -5,7 +5,7 @@ from ackermann_msgs.msg import AckermannDrive
 import tf_conversions
 
 import numpy as np
-from math import atan2, cos, sin, tan, atan, sqrt
+from math import atan2, cos, sin, tan, atan, sqrt, pi
 from scipy.interpolate import interp1d, CubicSpline
 import matplotlib as mpl
 from matplotlib import pyplot as plt
@@ -20,16 +20,16 @@ class Flat_Controller:
         self.t_prev = 0 # initial time
         
         self.L = 0.324
-        self.tvec = []
-        self.x_pose = []
-        self.y_pose = []
-        self.control1_vec = []
-        self.control2_vec = []
-        self.control3_vec = []
-        self.e1_vec = []
-        self.e2_vec = []
-        self.e1dot_vec = []
-        self.e2dot_vec = []
+        self.tvec = [0]
+        self.x_pose = [0]
+        self.y_pose = [0]
+        self.control1_vec = [0]
+        self.control2_vec = [0]
+        self.control3_vec = [0]
+        self.e1_vec = [0]
+        self.e2_vec = [0]
+        self.e1dot_vec = [0]
+        self.e2dot_vec = [0]
         #  Make a copy of the reference trajectory and construct interpolation functions
         #  to get the value of the reference at any time instance t
         self.xTraj = xTrajCS
@@ -71,8 +71,8 @@ class Flat_Controller:
 
             ax3.plot(self.tvec, self.e1_vec, label = "x error")
             ax3.plot(self.tvec, self.e2_vec, label = "y error")
-            ax3.plot(self.tvec, self.e1dot_vec, label = "x_dot error")
-            ax3.plot(self.tvec, self.e2dot_vec, label = "y_dot error")
+            # ax3.plot(self.tvec, self.e1dot_vec, label = "x_dot error")
+            # ax3.plot(self.tvec, self.e2dot_vec, label = "y_dot error")
             ax3.set_title("error vs t")
             ax3.legend()
             ax3.grid()
@@ -154,26 +154,31 @@ if __name__ == "__main__":
     xf = np.array([10.5,9.5,0])
     L = 0.324
 
-    tau_vec = np.linspace(0, 1,1001)
+    tau_vec1 = np.linspace(0, 5,1001)
+    # tau_vec2 = np.linspace(pi/2, pi, 1001)
 
-    AmatY = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
-                    [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0],
-                    [5*tau_vec[0]**4, 4*tau_vec[0]**3, 3*tau_vec[0]**2, 2*tau_vec[0]**1, tau_vec[0]**0, 0],
-                    [5*tau_vec[-1]**4, 4*tau_vec[-1]**3, 3*tau_vec[-1]**2, 2*tau_vec[-1]**1, tau_vec[-1]**0, 0]])
+    # tau_vec = np.linspace(0, 1,1001)
 
-    AmatX = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
-                    [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0]])
+    # AmatY = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
+    #                 [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0],
+    #                 [5*tau_vec[0]**4, 4*tau_vec[0]**3, 3*tau_vec[0]**2, 2*tau_vec[0]**1, tau_vec[0]**0, 0],
+    #                 [5*tau_vec[-1]**4, 4*tau_vec[-1]**3, 3*tau_vec[-1]**2, 2*tau_vec[-1]**1, tau_vec[-1]**0, 0]])
 
-    xPar = np.matmul(np.linalg.pinv(AmatX),np.array([[x0[0]],[xf[0]]]))
-    yPar = np.matmul(np.linalg.pinv(AmatY),np.array([[x0[1]],[xf[1]],[x0[2]],[xf[2]]]))
+    # AmatX = np.array([[tau_vec[0]**5, tau_vec[0]**4, tau_vec[0]**3, tau_vec[0]**2, tau_vec[0]**1, tau_vec[0]**0],
+    #                 [tau_vec[-1]**5, tau_vec[-1]**4, tau_vec[-1]**3, tau_vec[-1]**2, tau_vec[-1]**1, tau_vec[-1]**0]])
 
-    xPar = np.poly1d(np.squeeze(xPar))
-    yPar = np.poly1d(np.squeeze(yPar))
+    # xPar = np.matmul(np.linalg.pinv(AmatX),np.array([[x0[0]],[xf[0]]]))
+    # yPar = np.matmul(np.linalg.pinv(AmatY),np.array([[x0[1]],[xf[1]],[x0[2]],[xf[2]]]))
 
-    xTraj_normalized = np.polyval(xPar, tau_vec)
-    yTraj_normalized = np.polyval(yPar, tau_vec)
+    # xPar = np.poly1d(np.squeeze(xPar))
+    # yPar = np.poly1d(np.squeeze(yPar))
 
-    tmax = 10
+    # xTraj_normalized = np.polyval(xPar, tau_vec)
+    # yTraj_normalized = np.polyval(yPar, tau_vec)
+
+    xTraj_normalized = tau_vec1
+    yTraj_normalized = (np.exp(tau_vec1) - 1)/20
+    tmax = 5
     tvec = np.linspace(0, tmax, 1001)
 
     xTrajCS = CubicSpline(tvec, xTraj_normalized)
@@ -198,7 +203,10 @@ if __name__ == "__main__":
     phiTraj = np.arctan2(L*thdTraj, vTraj)
 
     # ref = np.array([tvec, xTraj, xdTraj, xddTraj, yTraj, ydTraj, yddTraj])
-    gain = [0.5,0.25]
+    gain = [25,20]
     # gain = [50, 15]
     controller = Flat_Controller(gain, tmax, xTrajCS, yTrajCS)
-    rospy.spin()
+    r = rospy.Rate(120)
+    while not rospy.is_shutdown():
+        r.sleep()
+
