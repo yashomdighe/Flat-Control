@@ -1,14 +1,15 @@
 #! /usr/bin/env python3
 import rospy 
-from nav_msgs.msg import Odometry, Path
+from nav_msgs.msg import Odometry
 from ackermann_msgs.msg import AckermannDrive
 import tf_conversions
 
 import numpy as np
-from math import atan2, cos, sin, tan, atan, sqrt
-from scipy.interpolate import interp1d, CubicSpline
+from math import cos, sin, atan, sqrt
+from scipy.interpolate import CubicSpline
 import matplotlib as mpl
 from matplotlib import pyplot as plt
+from std_srvs.srv import SetBool, SetBoolRequest
 
 class Flat_Controller:
     
@@ -38,7 +39,7 @@ class Flat_Controller:
         self.gain = gain
         self.tmax = tmax
         self.drive_msg = AckermannDrive()
-        self.driver = rospy.Publisher(name="/car_1/command", data_class=AckermannDrive, queue_size=5)
+        self.driver = rospy.Publisher(name="/car_1/command", data_class=AckermannDrive, queue_size=1)
         self.feedback = rospy.Subscriber(name="/car_1/base/odom", data_class=Odometry, queue_size=1, callback=self.traj_track)
 
     def traj_track(self, odom):
@@ -125,7 +126,7 @@ class Flat_Controller:
         dt = self.ti - self.t_prev
         # rospy.loginfo(dt)
         control1 = (z1*cos(yaw) + z2*sin(yaw)) # Acceleration
-        control2 = atan((self.L/vel_fwd**2)*(z2*cos(yaw)-z1*sin(yaw))) # Ph
+        control2 = atan((self.L/vel_fwd**2)*(z2*cos(yaw)-z1*sin(yaw))) # Phi
         control3 = self.vel_prev + control1*dt # numerical integration to calculate velocity
 
         # self.drive_msg.acceleration = control1
@@ -147,22 +148,34 @@ class Flat_Controller:
 
 if __name__ == "__main__":
     rospy.init_node("flat_controller")
+    
+    rospy.wait_for_service("/reset_car")
+    reset = rospy.ServiceProxy("/reset_car", SetBool)
+    try:
+        reset_status = reset(True)
+        rospy.sleep(1.2)
+    except rospy.ServiceException as e:
+        rospy.signal_shutdown("Could not reset world")
 
     L = 0.324
-    path = "scripts/Silverstone_centerline.csv"
+    path = "scripts/IMS_centerline.csv"
     waypoints = np.genfromtxt(path, dtype=float, delimiter=",")
     xCoords = waypoints[:,0]
     yCoords = waypoints[:,1]
 
-    tmax = 90
+    tmax = 35
     tvec = np.linspace(0,tmax,len(xCoords))
-    xTrajCS = CubicSpline(tvec,yCoords)
+    xTrajCS = CubicSpline(tvec,-yCoords)
     yTrajCS = CubicSpline(tvec,xCoords)
 
     xTraj = xTrajCS(tvec)
     yTraj = yTrajCS(tvec)
 
-    gain = [1,1]
+    gain = [2, 3] # Golden
+    # gain = [10, 12]
+    # gain = [1,1]
     # gain = [50, 15]
     controller = Flat_Controller(gain, tmax, xTrajCS, yTrajCS)
-    rospy.spin()
+    r = rospy.Rate(400)
+    while not rospy.is_shutdown():
+        r.sleep()
