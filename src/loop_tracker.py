@@ -116,8 +116,8 @@ class Flat_Controller:
         k1 = self.gain[1]
         k2 = self.gain[0]
 
-        k3 = self.gain[1] # kd 
-        k4 = self.gain[0] # kp
+        k3 = self.gain[3] # kd 
+        k4 = self.gain[2] # kp
 
         z1 = x_refdd+k1*e1_dot+k2*e1
         z2 = y_refdd+k3*e2_dot+k4*e2
@@ -128,6 +128,8 @@ class Flat_Controller:
         control1 = (z1*cos(yaw) + z2*sin(yaw)) # Acceleration
         control2 = atan((self.L/vel_fwd**2)*(z2*cos(yaw)-z1*sin(yaw))) # Phi
         control3 = self.vel_prev + control1*dt # numerical integration to calculate velocity
+        if control3 <= 0:
+            control3 = 0.001
 
         # self.drive_msg.acceleration = control1
         self.drive_msg.steering_angle = control2
@@ -158,20 +160,21 @@ if __name__ == "__main__":
         rospy.signal_shutdown("Could not reset world")
 
     L = 0.324
-    path = "scripts/IMS_centerline.csv"
+    path = "scripts/Oschersleben_centerline.csv"
     waypoints = np.genfromtxt(path, dtype=float, delimiter=",")
     xCoords = waypoints[:,0]
     yCoords = waypoints[:,1]
 
-    tmax = 35
+    tmax = 45
     tvec = np.linspace(0,tmax,len(xCoords))
-    xTrajCS = CubicSpline(tvec,-yCoords)
-    yTrajCS = CubicSpline(tvec,xCoords)
+    xTrajCS = CubicSpline(tvec,-xCoords)
+    yTrajCS = CubicSpline(tvec,yCoords)
 
     xTraj = xTrajCS(tvec)
     yTraj = yTrajCS(tvec)
 
-    gain = [2, 3] # Golden
+    gain = [2.5,3.5, 3, 4]
+    # gain = [2, 3] # Golden
     # gain = [10, 12]
     # gain = [1,1]
     # gain = [50, 15]

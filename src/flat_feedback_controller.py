@@ -9,6 +9,7 @@ from math import atan2, cos, sin, tan, atan, sqrt, pi
 from scipy.interpolate import interp1d, CubicSpline
 import matplotlib as mpl
 from matplotlib import pyplot as plt
+from std_srvs.srv import SetBool, SetBoolRequest
 
 class Flat_Controller:
     
@@ -55,6 +56,7 @@ class Flat_Controller:
             x_ref = self.xTraj(tvec)
             y_ref = self.yTraj(tvec)
 
+            print(tvec)
             fig, (ax1, ax2, ax3) = plt.subplots(1,3)
             ax1.plot(x_ref, y_ref, label = "reference")
             ax1.plot(self.x_pose, self.y_pose, label = "executed")
@@ -148,6 +150,14 @@ class Flat_Controller:
 if __name__ == "__main__":
     rospy.init_node("flat_controller")
 
+
+    rospy.wait_for_service("/reset_car")
+    reset = rospy.ServiceProxy("/reset_car", SetBool)
+    try:
+        reset_status = reset(True)
+        rospy.sleep(1.2)
+    except rospy.ServiceException as e:
+        rospy.signal_shutdown("Could not reset world")
     # 5th order polynomial
 
     x0 = np.array([0,0,0])
@@ -203,7 +213,7 @@ if __name__ == "__main__":
     phiTraj = np.arctan2(L*thdTraj, vTraj)
 
     # ref = np.array([tvec, xTraj, xdTraj, xddTraj, yTraj, ydTraj, yddTraj])
-    gain = [25,20]
+    gain = [2,3]
     # gain = [50, 15]
     controller = Flat_Controller(gain, tmax, xTrajCS, yTrajCS)
     r = rospy.Rate(120)
