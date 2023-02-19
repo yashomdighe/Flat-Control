@@ -67,7 +67,7 @@ class Flat_Controller:
             with open("trials/"+self.track+"_"+self.max_speed+"_trial_"+self.trial+".csv", "w+") as f:
                 f.write("tvec,x_ref,y_ref,x_real,y_real,x_error,y_error,vel,x_dot_error,y_dot_error\n")
                 for i in range(len(self.tvec)):
-                    f.write("{},{},{},{},{},{},{},{},{}\n".format(
+                    f.write("{},{},{},{},{},{},{},{},{},{}\n".format(
                         self.tvec[i],
                         x_ref[i],
                         y_ref[i],
@@ -184,7 +184,37 @@ class Flat_Controller:
 
         self.driver.publish(self.drive_msg)
 
-        
+def getTvec(trajectory, maxSpeeds, avgSpeed):
+    length = 0
+    minSpeed = 0.5
+    clip = minSpeed
+    clipDelta = 0.1
+    clipSpeeds = np.clip(maxSpeeds, minSpeed, clip)
+    while np.mean(clipSpeeds) < avgSpeed:
+        clip += clipDelta
+        clipSpeeds = np.clip(maxSpeeds, minSpeed, clip)
+    Tvec = [0]
+    lastPt = trajectory[0]
+    for pt, speed in zip(trajectory, clipSpeeds):
+        dist = ((lastPt[0] - pt[0]) ** 2 + (lastPt[1] - pt[1]) ** 2) ** 0.5
+        Tvec.append(Tvec[-1] + dist / speed)
+        lastPt = pt
+        length+= dist
+    Tvec = Tvec[1:]
+    # Tvec = np.array(Tvec).reshape(len(Tvec), 1)
+    print(f"Track Length -> {length}")
+    print(
+        f"Expected laptime -> {length/np.mean(clipSpeeds)} with avgSpeed -> {np.mean(clipSpeeds)}"
+    )
+    print(f"Cumulated laptime -> {Tvec[-1]}")
+    # plt.figure()
+    # ax = plt.axes(projection="3d")
+    # # ax.plot3D(traj[:, 0], traj[:, 1], traj[:, 2], label="Trajectory")
+    # ax.plot3D(traj[:, 0], traj[:, 1], oldSpeeds, label="Speeds")
+    # ax.plot3D(traj[:, 0], traj[:, 1], clipSpeeds, label="New Speeds")
+    # plt.legend(loc="best")
+    # plt.show()
+    return Tvec    
 
 
 if __name__ == "__main__":
@@ -204,26 +234,23 @@ if __name__ == "__main__":
     trial = sys.argv[3]
     path = "scripts/"+track+"_centerline.csv"
     waypoints = np.genfromtxt(path, dtype=float, delimiter=",") 
-    xCoords = waypoints[:,0]
-    yCoords = waypoints[:,1]
+    coords = waypoints[:,0:2]
+    # perm_speed= waypoints[:,4]
     
-    correction_angle = -atan2(yCoords[1]-yCoords[0], xCoords[1]-xCoords[0])
+    correction_angle = atan2(coords[1,1]-coords[0,1], coords[1,0]-coords[0,0])
     R_z = np.array(
                     [[cos(correction_angle), -sin(correction_angle)],
                     [sin(correction_angle), cos(correction_angle)]])
-    coords = zip(xCoords, yCoords)
-    corrected_xCoords = []
-    corrected_yCoords = []
 
-    for p in coords:
-        p = np.matmul(R_z,np.array(p).T)
-        corrected_xCoords.append(p[0])
-        corrected_yCoords.append(p[1])
+    corrected_coords = np.dot(coords, R_z)
 
-    tmax = 38
-    tvec = np.linspace(0,tmax,len(xCoords))
-    xTrajCS = CubicSpline(tvec,corrected_xCoords)
-    yTrajCS = CubicSpline(tvec,corrected_yCoords)
+    tmax = 59
+    tvec = np.linspace(0,tmax,len(corrected_coords))
+    # tvec = t_space * tmax / t_space[-1]
+    # tvec = getTvec(coords, perm_speed, 5)
+    # print(tvec)
+    xTrajCS = CubicSpline(tvec,corrected_coords[:,0])
+    yTrajCS = CubicSpline(tvec,corrected_coords[:,1])
 
     xTraj = xTrajCS(tvec)
     yTraj = yTrajCS(tvec)
@@ -248,7 +275,7 @@ if __name__ == "__main__":
     
     mapViz.publish(mapArray)
     
-
+    tmax = tvec[-1]
     gain = [2.5,3.5, 3, 4]
     # gain = [2, 3] # Golden
     # gain = [10, 12]
