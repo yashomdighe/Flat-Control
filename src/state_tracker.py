@@ -211,30 +211,27 @@ if __name__ == "__main__":
     track = sys.argv[1]
     max_speed = sys.argv[2]
     trial = sys.argv[3]
-    path = "scripts/"+track+"_centerline.csv"
+    path = "scripts/"+track+"_centerline_forVicon.csv"
     waypoints = np.genfromtxt(path, dtype=float, delimiter=",") 
-    xCoords = waypoints[:,0]
-    yCoords = waypoints[:,1]
+    coords = waypoints[:,1:3]
+    # perm_speed= waypoints[:,4]
     
-    correction_angle = -atan2(yCoords[1]-yCoords[0], xCoords[1]-xCoords[0])
+    correction_angle = atan2(coords[1,1]-coords[0,1], coords[1,0]-coords[0,0])
     R_z = np.array(
                     [[cos(correction_angle), -sin(correction_angle)],
                     [sin(correction_angle), cos(correction_angle)]])
-    coords = zip(xCoords, yCoords)
-    corrected_xCoords = []
-    corrected_yCoords = []
 
-    for p in coords:
-        p = np.matmul(R_z,np.array(p).T)
-        corrected_xCoords.append(p[0])
-        corrected_yCoords.append(p[1])
+    corrected_coords = np.dot(coords, R_z)
 
-    tmax = 65
-    tvec = np.linspace(0,tmax,len(xCoords))
-    xTrajCS = CubicSpline(tvec,corrected_xCoords)
-    yTrajCS = CubicSpline(tvec,corrected_yCoords)
+    tmax = 5
+    tvec = np.linspace(0,tmax,coords.shape[0])
+    # tvec = t_space * tmax / t_space[-1]
+    # tvec = getTvec(coords, perm_speed, 5)
+    # print(tvec)
+    xTrajCS = CubicSpline(tvec,coords[:,0])
+    yTrajCS = CubicSpline(tvec,coords[:,1])
 
-    tvec = np.linspace(0,tmax,20000)
+    tvec = np.linspace(0,tmax,200)
 
     x_ref = np.array(xTrajCS(tvec)).reshape(-1,1)
     y_ref = np.array(yTrajCS(tvec)).reshape(-1,1)
